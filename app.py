@@ -57,7 +57,11 @@ DATA_DIR         = Path(os.environ.get("DATA_DIR", "server_data"))
 BATCHES_FILE     = DATA_DIR / "batches.json"
 RESPONSES_FILE   = DATA_DIR / "responses.json"
 ANNOTATORS_FILE  = DATA_DIR / "annotators.json"
-IMAGES_ROOT      = Path(os.environ.get("IMAGES_ROOT", "../image-extraction"))
+_IMAGES_ROOT_RAW = os.environ.get("IMAGES_ROOT", "../image-extraction")
+IMAGES_ROOT_IS_URL = _IMAGES_ROOT_RAW.startswith("http://") or _IMAGES_ROOT_RAW.startswith("https://")
+IMAGES_ROOT_STR = _IMAGES_ROOT_RAW
+IMAGES_ROOT = None if IMAGES_ROOT_IS_URL else Path(_IMAGES_ROOT_RAW)
+IMAGES_ROOT_ABS = None if IMAGES_ROOT_IS_URL else IMAGES_ROOT.resolve()
 
 DISTRICT_PATTERNS = [
     "Inseguros-Barranco-GGZ-2016/**/*.jpg",
