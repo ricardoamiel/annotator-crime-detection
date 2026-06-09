@@ -236,6 +236,13 @@ def claim_batch():
     raw_alias   = request.args.get("alias", "")
     session_id, alias = resolve_session(raw_session, raw_alias)
 
+    # Sociodemographic profile fields
+    edad      = request.args.get("edad",      "")
+    genero    = request.args.get("genero",    "")
+    distrito  = request.args.get("distrito",  "")
+    barrio    = request.args.get("barrio",    "")
+    educacion = request.args.get("educacion", "")
+
     with _lock:
         batches    = load_json(BATCHES_FILE, {})
         responses  = load_json(RESPONSES_FILE, {})
@@ -244,11 +251,24 @@ def claim_batch():
         if session_id not in annotators:
             annotators[session_id] = {
                 "alias":             alias,
+                "edad":              edad,
+                "genero":            genero,
+                "distrito":          distrito,
+                "barrio":            barrio,
+                "educacion":         educacion,
                 "first_seen":        time.time(),
                 "completed_batches": [],
                 "in_progress_batch": None,
                 "deploy_mode":       DEPLOY_MODE,
             }
+        else:
+            # Update profile in case user redoes the form
+            if alias:     annotators[session_id]["alias"]     = alias
+            if edad:      annotators[session_id]["edad"]      = edad
+            if genero:    annotators[session_id]["genero"]    = genero
+            if distrito:  annotators[session_id]["distrito"]  = distrito
+            if barrio:    annotators[session_id]["barrio"]    = barrio
+            if educacion: annotators[session_id]["educacion"] = educacion
 
         bid = pick_batch_for_session(session_id, batches, responses, annotators)
         if bid is None:

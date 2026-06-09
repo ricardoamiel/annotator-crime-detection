@@ -5,13 +5,15 @@ import {
 } from "react-icons/fi";
 import { FaPencilAlt, FaCheck } from "react-icons/fa";
 import Anotador from "./Anotador";
+import { LIMA_DISTRICTS, BARRIOS_POR_DISTRITO, NIVEL_EDUCATIVO } from "./limaData";
 
 // ─── config ──────────────────────────────────────────────────────────────────
 const COLS        = 8;
 const ROWS        = 4;
 const API         = "http://127.0.0.1:5000/api";
-const SESSION_KEY = "ann_session_id";
-const ALIAS_KEY   = "ann_alias";
+const SESSION_KEY  = "ann_session_id";
+const ALIAS_KEY    = "ann_alias";
+const PROFILE_KEY  = "ann_profile";   // full sociodemographic profile
 
 // Draft keys are PER BATCH so they survive server restarts and page refreshes
 // without bleeding into a different batch.
@@ -56,12 +58,25 @@ function saveEdits(bid, e) {
   try { localStorage.setItem(EDITS_KEY(bid), JSON.stringify(e)); } catch {}
 }
 
+function loadProfile() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "null"); }
+  catch { return null; }
+}
+function saveProfile(p) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
+}
+
 // ─── component ───────────────────────────────────────────────────────────────
 
 export default function App() {
   const sessionId = useRef(getSession());
   const [alias,      setAlias]     = useState(localStorage.getItem(ALIAS_KEY) || "");
-  const [showAlias,  setShowAlias] = useState(!localStorage.getItem(ALIAS_KEY));
+  const [showAlias,  setShowAlias] = useState(!loadProfile());
+
+  // Sociodemographic form state
+  const EMPTY_PROFILE = { nickname:"", edad:"", genero:"", distrito:"", barrio:"", educacion:"" };
+  const [profile, setProfile] = useState(loadProfile() || EMPTY_PROFILE);
+  const [formErrors, setFormErrors] = useState({});
 
   const [batchId,     setBatchId]     = useState(null);
   const [batchImages, setBatchImages] = useState([]);
@@ -126,9 +141,15 @@ export default function App() {
     setSubmitMsg("");
     try {
       const sid    = sessionId.current;
+      const p = loadProfile() || {};
       const params = new URLSearchParams({
         session_id: sid,
-        alias: localStorage.getItem(ALIAS_KEY) || "",
+        alias:      p.nickname || localStorage.getItem(ALIAS_KEY) || "",
+        edad:       p.edad       || "",
+        genero:     p.genero     || "",
+        distrito:   p.distrito   || "",
+        barrio:     p.barrio     || "",
+        educacion:  p.educacion  || "",
       });
       const res  = await fetch(`${API}/batch/claim?${params}`);
       const data = await res.json();
@@ -217,26 +238,179 @@ export default function App() {
     }
   };
 
-  // ── alias screen ──────────────────────────────────────────────────────────
-  function confirmAlias() {
-    const name = alias.trim() || sessionId.current.slice(0, 8);
+  // ── profile form ─────────────────────────────────────────────────────────
+  function setField(k, v) {
+    setProfile(prev => {
+      const next = { ...prev, [k]: v };
+      if (k === "distrito") next.barrio = "";   // reset barrio when district changes
+      return next;
+    });
+    setFormErrors(prev => ({ ...prev, [k]: false }));
+  }
+
+  function confirmProfile() {
+    const errors = {};
+    if (!profile.nickname.trim()) errors.nickname  = true;
+    if (!profile.edad || isNaN(Number(profile.edad)) || Number(profile.edad) < 10 || Number(profile.edad) > 100)
+      errors.edad = true;
+    if (!profile.distrito)   errors.distrito   = true;
+    if (!profile.barrio)     errors.barrio     = true;
+    if (!profile.genero)     errors.genero     = true;
+  if (!profile.educacion)  errors.educacion  = true;
+    if (Object.keys(errors).length) { setFormErrors(errors); return; }
+
+    const name = profile.nickname.trim();
     localStorage.setItem(ALIAS_KEY, name);
+    saveProfile({ ...profile, nickname: name });
     setAlias(name);
     setShowAlias(false);
   }
 
   if (showAlias) {
+    const barrios = profile.distrito ? (BARRIOS_POR_DISTRITO[profile.distrito] || []) : [];
+    const err = (k) => formErrors[k] ? { border: "1.5px solid #ef4444" } : {};
+
     return (
       <div style={s.center}>
-        <div style={s.aliasBox}>
-          <h2 style={{ margin: "0 0 8px" }}>Bienvenido/a</h2>
-          <p style={{ color: "#6b7280", marginBottom: 20, fontSize: 14 }}>
-            Ingresa un nombre o apodo para identificar tus respuestas.
-          </p>
-          <input autoFocus placeholder="Tu nombre o apodo" value={alias}
-            onChange={e => setAlias(e.target.value)} style={s.aliasInput}
-            onKeyDown={e => { if (e.key === "Enter") confirmAlias(); }} />
-          <button style={s.startBtn} onClick={confirmAlias}>Comenzar →</button>
+        <div style={s.profileBox}>
+          <div style={s.profileHeader}>
+            <h2 style={{ margin: 0, fontSize: 20 }}>Información del participante</h2>
+            <p style={{ margin: "6px 0 0", color: "#6b7280", fontSize: 13 }}>
+              Esta información es confidencial y solo se usa con fines de investigación.
+            </p>
+          </div>
+
+          <div style={s.formGrid}>
+
+            {/* Nickname */}
+            <label style={s.label}>
+              Nickname *
+              <input
+                autoFocus
+                placeholder="Ej: Ricardo"
+                value={profile.nickname}
+                onChange={e => setField("nickname", e.target.value)}
+                style={{ ...s.input, ...err("nickname") }}
+              />
+              {formErrors.nickname && <span style={s.errMsg}>Ingresa un nickname</span>}
+            </label>
+
+            {/* Edad */}
+            <label style={s.label}>
+              Edad *
+              <input
+                type="number" min="10" max="100"
+                placeholder="Ej: 21"
+                value={profile.edad}
+                onChange={e => setField("edad", e.target.value)}
+                style={{ ...s.input, ...err("edad") }}
+              />
+              {formErrors.edad && <span style={s.errMsg}>Ingresa una edad válida (10–100)</span>}
+            </label>
+
+            {/* Género */}
+            <label style={s.label}>
+              Género *
+              <div style={{ display: "flex", gap: 10, marginTop: 2 }}>
+                {[{v:"masculino", l:"Masculino"}, {v:"femenino", l:"Femenino"}].map(opt => {
+                  const sel = profile.genero === opt.v;
+                  return (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => setField("genero", opt.v)}
+                      style={{
+                        flex: 1, padding: "9px 0", borderRadius: 8,
+                        fontSize: 14, fontWeight: 500, cursor: "pointer",
+                        transition: "all .15s",
+                        background: sel ? "#1d4ed8" : "#f3f4f6",
+                        color:      sel ? "#fff"    : "#374151",
+                        border:     sel ? "2px solid #1d4ed8"
+                                       : formErrors.genero
+                                         ? "2px solid #ef4444"
+                                         : "2px solid transparent",
+                      }}
+                    >
+                      {opt.l}
+                    </button>
+                  );
+                })}
+              </div>
+              {formErrors.genero && <span style={s.errMsg}>Selecciona tu género</span>}
+            </label>
+
+            {/* Distrito */}
+            <label style={s.label}>
+              Distrito de vivienda actual *
+              <select
+                value={profile.distrito}
+                onChange={e => setField("distrito", e.target.value)}
+                style={{ ...s.input, ...err("distrito") }}
+              >
+                <option value="">— Selecciona un distrito —</option>
+                {LIMA_DISTRICTS.map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              {formErrors.distrito && <span style={s.errMsg}>Selecciona tu distrito</span>}
+            </label>
+
+            {/* Barrio */}
+            <label style={s.label}>
+              Barrio / Urbanización / Avenida *
+              <select
+                value={profile.barrio}
+                onChange={e => setField("barrio", e.target.value)}
+                disabled={!profile.distrito}
+                style={{ ...s.input, ...err("barrio"),
+                  background: !profile.distrito ? "#f9fafb" : undefined,
+                  color:      !profile.distrito ? "#9ca3af" : undefined,
+                }}
+              >
+                <option value="">
+                  {profile.distrito ? "— Selecciona un barrio —" : "Selecciona primero el distrito"}
+                </option>
+                {barrios.map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+              {formErrors.barrio && <span style={s.errMsg}>Selecciona tu barrio</span>}
+            </label>
+
+            {/* Nivel educativo — full width */}
+            <label style={{ ...s.label, gridColumn: "1 / -1" }}>
+              Nivel educativo *
+              <div style={s.eduGrid}>
+                {NIVEL_EDUCATIVO.map(opt => {
+                  const selected = profile.educacion === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setField("educacion", opt.value)}
+                      style={{
+                        ...s.eduBtn,
+                        background: selected ? "#1d4ed8" : "#f3f4f6",
+                        color:      selected ? "#fff"    : "#374151",
+                        border:     selected ? "2px solid #1d4ed8"
+                                             : formErrors.educacion
+                                               ? "2px solid #ef4444"
+                                               : "2px solid transparent",
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {formErrors.educacion && <span style={s.errMsg}>Selecciona tu nivel educativo</span>}
+            </label>
+
+          </div>
+
+          <button style={s.startBtn} onClick={confirmProfile}>
+            Comenzar a anotar →
+          </button>
         </div>
       </div>
     );
@@ -641,4 +815,35 @@ const s = {
   startBtn:  { padding: "11px 22px", borderRadius: 8, border: "none",
                background: "#1d4ed8", color: "#fff", fontWeight: 600,
                fontSize: 14, cursor: "pointer", width: "100%" },
+  // Profile form
+  profileBox: {
+    background: "#fff", borderRadius: 18, width: "100%", maxWidth: 620,
+    boxShadow: "0 6px 32px rgba(0,0,0,.13)",
+    display: "flex", flexDirection: "column", gap: 0, overflow: "hidden",
+  },
+  profileHeader: {
+    background: "linear-gradient(135deg,#1d4ed8,#3b82f6)",
+    padding: "24px 28px", color: "#fff",
+  },
+  formGrid: {
+    display: "grid", gridTemplateColumns: "1fr 1fr",
+    gap: "16px 20px", padding: "24px 28px",
+  },
+  label: {
+    display: "flex", flexDirection: "column", gap: 5,
+    fontSize: 13, fontWeight: 600, color: "#374151",
+  },
+  input: {
+    padding: "10px 12px", borderRadius: 8, fontSize: 14,
+    border: "1.5px solid #e5e7eb", outline: "none",
+    background: "#fff", color: "#111", width: "100%", boxSizing: "border-box",
+  },
+  errMsg: { fontSize: 11, color: "#ef4444", marginTop: 2 },
+  eduGrid: {
+    display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4,
+  },
+  eduBtn: {
+    padding: "7px 14px", borderRadius: 8, fontSize: 13,
+    fontWeight: 500, cursor: "pointer", transition: "all .15s",
+  },
 };
