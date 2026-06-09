@@ -477,10 +477,6 @@ def upload_manifest():
 
 import urllib.request as _urllib
 
-IMAGES_ROOT_STR = str(IMAGES_ROOT)
-IMAGES_ROOT_IS_URL = IMAGES_ROOT_STR.startswith("http://") or IMAGES_ROOT_STR.startswith("https://")
-IMAGES_ROOT_ABS = None if IMAGES_ROOT_IS_URL else IMAGES_ROOT.resolve()
-
 @app.route("/imgs/<path:img_path>")
 def serve_image(img_path):
     """
