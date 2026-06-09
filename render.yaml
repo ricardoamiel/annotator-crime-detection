@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: anotador-backend
+    runtime: python
+    rootDir: .
+    buildCommand: pip install flask flask-cors
+    startCommand: python app.py
+    disk:
+      name: server-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: DEPLOY_MODE
+        value: deployed
+      - key: TARGET_RESPONSES
+        value: "3"
+      - key: LOCAL_SESSION
+        value: local_annotator
+      - key: IMAGES_ROOT
+        value: ""          # set this to your ngrok URL before each session
+                           # e.g. https://xxxx.ngrok-free.app

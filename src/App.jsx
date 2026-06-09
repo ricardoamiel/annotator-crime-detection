@@ -10,7 +10,8 @@ import { LIMA_DISTRICTS, BARRIOS_POR_DISTRITO, NIVEL_EDUCATIVO } from "./limaDat
 // ─── config ──────────────────────────────────────────────────────────────────
 const COLS        = 8;
 const ROWS        = 4;
-const API         = "http://127.0.0.1:5000/api";
+//const API         = "http://127.0.0.1:5000/api";
+const API         = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
 const SESSION_KEY  = "ann_session_id";
 const ALIAS_KEY    = "ann_alias";
 const PROFILE_KEY  = "ann_profile";   // full sociodemographic profile
