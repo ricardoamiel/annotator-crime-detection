@@ -471,4 +471,5 @@ if __name__ == "__main__":
     if not IMAGES_ROOT_ABS.exists():
         print(f"  ⚠  WARNING: image folder not found at {IMAGES_ROOT_ABS}")
         print(f"     Set IMAGES_ROOT env var or adjust the path in app.py\n")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, debug=False)
