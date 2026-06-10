@@ -388,11 +388,17 @@ def submit_batch(batch_id):
 
 @app.route("/api/responses/export", methods=["GET"])
 def export_responses():
+    secret = request.args.get("key", "") or (request.get_json(silent=True) or {}).get("key", "")
+    if secret != os.environ.get("ADMIN_KEY", ""):
+        return jsonify({"error": "unauthorized"}), 401
     return jsonify(load_json(RESPONSES_FILE, {}))
 
 
 @app.route("/api/responses/batch/<int:batch_id>", methods=["GET"])
 def get_batch_responses(batch_id):
+    secret = request.args.get("key", "") or (request.get_json(silent=True) or {}).get("key", "")
+    if secret != os.environ.get("ADMIN_KEY", ""):
+        return jsonify({"error": "unauthorized"}), 401
     responses = load_json(RESPONSES_FILE, {})
     bid = str(batch_id)
     batch_resp = responses.get(bid, {})
@@ -418,6 +424,9 @@ def my_status():
 @app.route("/api/admin/reset_response", methods=["POST"])
 def admin_reset_response():
     data       = request.get_json() or {}
+    secret = data.get("key", "")
+    if secret != os.environ.get("ADMIN_KEY", ""):
+        return jsonify({"error": "unauthorized"}), 401
     batch_id   = str(data.get("batch_id"))
     session_id = data.get("session_id")
     with _lock:
@@ -438,6 +447,9 @@ def admin_reset_response():
 @app.route("/api/admin/rebuild", methods=["POST"])
 def admin_rebuild():
     body           = request.get_json() or {}
+    secret = body.get("key", "")
+    if secret != os.environ.get("ADMIN_KEY", ""):
+        return jsonify({"error": "unauthorized"}), 401
     new_batch_size = int(body.get("batch_size", BATCH_SIZE))
     with _lock:
         images  = discover_images()
@@ -461,6 +473,9 @@ def upload_manifest():
     data = request.get_json()
     if not data or not isinstance(data, dict):
         return jsonify({"error": "expected a JSON object (batches dict)"}), 400
+    secret = data.get("key", "")
+    if secret != os.environ.get("ADMIN_KEY", ""):
+        return jsonify({"error": "unauthorized"}), 401
     # Validate it looks like a batches manifest
     sample = next(iter(data.values()), None)
     if sample is None or "images" not in sample:
