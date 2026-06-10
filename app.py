@@ -502,6 +502,25 @@ def serve_image(img_path):
             return f"Error fetching image: {e}", 502
     else:
         return send_from_directory(IMAGES_ROOT_ABS, img_path)
+    
+@app.route("/api/admin/annotators", methods=["GET"])
+def list_annotators():
+    secret = request.args.get("key", "")
+    if secret != os.environ.get("ADMIN_KEY", ""):
+        return jsonify({"error": "unauthorized"}), 401
+    annotators = load_json(ANNOTATORS_FILE, {})
+    summary = [
+        {
+            "alias":     info.get("alias", ""),
+            "genero":    info.get("genero", ""),
+            "edad":      info.get("edad", ""),
+            "distrito":  info.get("distrito", ""),
+            "educacion": info.get("educacion", ""),
+            "completed": len(info.get("completed_batches", [])),
+        }
+        for sid, info in annotators.items()
+    ]
+    return jsonify({"total": len(summary), "annotators": summary})
 
 
 if __name__ == "__main__":
